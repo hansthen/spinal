@@ -1,6 +1,7 @@
 from umongo import fields, Instance, Document, EmbeddedDocument
 import motor
 import asyncio
+import os
 
 
 def connect(database):
