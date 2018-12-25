@@ -1,0 +1,7 @@
+test-run -> embeds *test-results
+test-result has an object reference to 1 test-case
+    we can also use a string reference as key to test case
+
+test-run has an object reference to 1 project
+
+

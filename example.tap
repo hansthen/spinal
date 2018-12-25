@@ -1,0 +1,15 @@
+1..14
+ok 1 download today's logs from incoming
+ok 2 download from incoming
+ok 3 download today's logs from hourly # skip (Nothing found)
+ok 4 download from hourly
+ok 5 download today's logs from daily # skip (Nothing found)
+ok 6 download from daily
+ok 7 download of invalid environment should not return any output
+ok 8 download of invalid date should fail not return any output
+ok 9 start boobafina in server mode
+ok 10 list logs for a few environments
+ok 11 download logs for a few environments
+ok 12 invalid credentials on list should result in 401
+ok 13 invalid signature on download should result in 403
+ok 14 kill server
