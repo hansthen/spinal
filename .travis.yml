@@ -1,0 +1,6 @@
+language: python
+jobs:  
+  include:
+    - stage: "Tests"                # naming the Tests stage
+      name: "Unit Tests"            # names the first Tests stage job
+      script: bats tests.bats

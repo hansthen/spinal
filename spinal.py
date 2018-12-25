@@ -123,18 +123,14 @@ async def insert(project_name):
                 )
             )
             if line.category == "test":
-                result = models.TestResult(
+                result = models.Result(
                     title=line.description,
                     result="ok" if line.ok else "not ok",
                     skip=line.directive.text if line.skip else None,
                 )
 
                 run.results.append(result)
-        extent = max(1, len(run.results) - 1)
-        for index, result in enumerate(run.results):
-            run.results[index].position = index / extent
-
-        run.save()
+        run.commit()
     return "hello"
 
 

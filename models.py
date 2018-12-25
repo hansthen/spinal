@@ -28,8 +28,10 @@ class TestCase(Document):
 
 @instance.register
 class Result(EmbeddedDocument):
-    name = fields.StrField(required=True)
+    title = fields.StrField(required=True)
     testcase = fields.ReferenceField(TestCase)
+    result = fields.StringField(required=True)
+    skip = fields.StringField(default=None, allow_none=True)
 
 
 @instance.register
