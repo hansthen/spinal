@@ -1,4 +1,4 @@
-language: python
+language: python3
 jobs:  
   include:
     - stage: "Tests"                # naming the Tests stage
