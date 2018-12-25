@@ -29,6 +29,7 @@ marshmallow==2.16.3
 mccabe==0.6.1
 motor==1.3.1
 multidict==4.5.2
+munch==2.3.2
 packaging==18.0
 pylint==2.1.1
 pymongo==3.7.2

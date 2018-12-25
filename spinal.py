@@ -1,5 +1,6 @@
 from quart import Quart, flash, request
 import motor
+from munch import Munch
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 import configargparse
@@ -76,6 +77,13 @@ def create_table(runs, tests):
                 row.append(None)
         table.append(row)
     return table
+
+
+@app.route("/webhooks/chargebee/<token>")
+async def webhook(token):
+    event = await request.get_json()
+    event = Munch.fromDict(event)
+    print(event.event_type)
 
 
 @app.route("/project/<project>/", methods=["GET"])

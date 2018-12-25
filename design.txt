@@ -4,4 +4,37 @@ test-result has an object reference to 1 test-case
 
 test-run has an object reference to 1 project
 
+workflow:
+1. we do not want users to send test reports for just any project
+2. so after creating a project, users get an api-key (how?)
+3. the api-key is used for authentication of (at least) the updates
+4. if the project is marked as private, api-key is also used for reports
 
+Use case 1: user registers a project
+1. user logs into system :-> spinal.chargebeeportal.com
+2. user creates a project :-> also via chargebee = activate a subscription
+2a) this is a web hook???
+3. user is redirected to a page where they can create an api key (and expire existing ones)
+
+Use case 2: user registers a test run
+1. user runs a CI run that outputs TAP protocol
+2. user calls the spinal app which is configured with an API key and a project name (in environment variables)
+3. spinal uploads the test results for the project
+
+Use case 3: user shows last N test results on an overview page
+1. user visits a link with a project page
+2. query parameters determine which test results are shown
+
+Use case 4: user gets charged for amount used
+1. billing separately for test runs and storage
+2. add-ons: test analytics (contact us for pricing)
+    1. test dependencies
+    2. test informational value (how often does a test fail?)
+    3. source code analytics (analyzes your source code for hotspots)
+3. 
+
+-------------------------------
+Chargebee metered usage:
+1. define a basic plan
+2. the metering is a recurring add-on
+3. I need to configure a web-hook to determine the billing

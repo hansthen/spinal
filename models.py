@@ -4,7 +4,9 @@ import asyncio
 
 
 def connect(database):
-    client = motor.motor_asyncio.AsyncIOMotorClient("mongodb://localhost")
+    client = motor.motor_asyncio.AsyncIOMotorClient(
+        os.getenv("MONGODB_URI", "mongodb://localhost")
+    )
     return client[database]
 
 
