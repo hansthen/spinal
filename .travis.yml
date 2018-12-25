@@ -1,4 +1,5 @@
 language: python3
+services: mongodb
 jobs:  
   include:
     - stage: "Tests"                # naming the Tests stage
