@@ -1,6 +1,7 @@
 from quart import Quart, flash, request
 import motor
 from chargebee.models import Event
+import chargebee
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
@@ -80,11 +81,29 @@ def create_table(runs, tests):
     return table
 
 
+@app.route("/signup", methods=["GET"])
+async def signup():
+    template = env.get_template("signup.html")
+    return template.render()
+
+
 @app.route("/webhooks/chargebee/<token>", methods=["POST"])
 async def webhook(token):
+    chargebee.configure("test_hdeu7cKnChy96LLM5sHXixxOY3mYymie", "spinal-test")
     event = await request.data
     event = Event.deserialize(event)
-    print(event.event_type)
+    print(event)
+    if event.event_type != "pending_invoice_created":
+        return "IGNORE", 200
+    invoice_id = event.content.invoice.id
+    result = chargebee.Invoice.add_charge(
+        invoice_id, {"amount": 150, "description": "150 test runs in this period"}
+    )
+    invoice = result.invoice
+    print(invoice)
+    result = chargebee.Invoice.close(invoice_id)
+    print(invoice)
+
     return "OK", 200
 
 
