@@ -18,6 +18,10 @@ instance = Instance(db)
 @instance.register
 class Project(Document):
     name = fields.StrField(required=True)
+    subscription_id = fields.StrField(required=True)
+
+    class Meta:
+        indexes = {"key": ["subscription_id"], "unique": True}
 
 
 @instance.register
