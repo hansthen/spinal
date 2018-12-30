@@ -31,10 +31,20 @@ Use case 4: user gets charged for amount used
     1. test dependencies
     2. test informational value (how often does a test fail?)
     3. source code analytics (analyzes your source code for hotspots)
-3. 
+
+How to handle signup? I want users to start with an overview page of all projects in their system.
+-- Probably: use a callback to register links to users and projects/products.
 
 -------------------------------
 Chargebee metered usage:
 1. define a basic plan
 2. the metering is a recurring add-on
 3. I need to configure a web-hook to determine the billing
+
+Screens:
+1. dashboard, shows projects
+2. project page, show historical test runs
+3. test run detail page?
+4. test case detail page?
+
+
