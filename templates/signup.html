@@ -6,7 +6,19 @@
     <script src="https://js.chargebee.com/v2/chargebee.js" data-cb-site="spinal-test"> </script>
 </head>
 <body>
-<a href="javascript:void(0)" data-cb-type="checkout" data-cb-plan-id="basic-2" data-cb-plan-quantity="1" >subscribe</a>
+<a href="javascript:void(0)" data-cb-type="checkout" data-cb-plan-id="test-dashboard-basic" >subscribe</a><br>
 <a href="javascript:void(0)" data-cb-type="portal" >Manage account</a>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+      var cbInstance = Chargebee.getInstance();
+      var planElement = document.querySelector("[data-cb-plan-id='test-dashboard-basic']");
+      var product = cbInstance.getProduct(planElement);
+
+
+      // adding subscription custom fields
+      product.data["cf_project_name"] = "hello world";
+      console.log("I was added");
+    });
+</script>
 </body>
 </html>
