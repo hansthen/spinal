@@ -8,6 +8,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 import configargparse
 import datetime
 import json
+from collections import defaultdict
 
 import models
 import logging
@@ -102,39 +103,73 @@ def create_table(runs, tests):
     return table
 
 
+async def default_webhook(event):
+    logger.debug("Ignore event of type %s", event.event_type)
+    return "IGNORE: " + event.event_type, 200
+
+
+webhooks = defaultdict(lambda: default_webhook)
+
+
+def webhook(event_type):
+    def decorator_register(func):
+        webhooks[event_type] = func
+        return func
+
+    return decorator_register
+
+
+@webhook("subscription_created")
+async def subscription_created(event):
+    logger.debug("Registered new project")
+    project_name = event.content.subscription.cf_project_name
+    logger.debug(project_name)
+    logger.debug(event)
+    project = models.Project(name=project_name)
+    await project.commit()
+    logger.debug("New project created")
+    return "OK", 200
+
+
+@webhook("pending_invoice_created")
+async def pending_invoice_created(event):
+    invoice_id = event.content.invoice.id
+    result = chargebee.Invoice.add_charge(
+        invoice_id, {"amount": 150, "description": "150 test runs in this period"}
+    )
+    invoice = result.invoice
+    logger.debug(invoice)
+    result = chargebee.Invoice.close(invoice_id)
+    logger.debug(result)
+    logger.debug(invoice)
+
+    return "OK", 200
+
+
+@app.route("/webhooks/chargebee/<token>", methods=["POST"])
+async def handle_webhook(token):
+    event = await request.data
+    event = Event.deserialize(event)
+    func = webhooks[event.event_type]
+    logger.debug("handling webhook for %s by %s", event.event_type, func.__name__)
+    return await func(event)
+
+
 @app.route("/signup", methods=["GET"])
 async def signup():
     template = env.get_template("signup.html")
     return template.render()
 
 
-@app.route("/webhooks/chargebee/<token>", methods=["POST"])
-async def webhook(token):
-    chargebee.configure("test_hdeu7cKnChy96LLM5sHXixxOY3mYymie", "spinal-test")
-    event = await request.data
-    event = Event.deserialize(event)
-    if event.event_type == "subscription_created":
-        print("Registered new project")
-        project_name = event.content.subscription.cf_project_name
-        print(project_name)
-        print(event)
-        project = models.Project(name=project_name)
-        await project.commit()
-        logger.debug("Creating new project")
-        print(project)
-    if event.event_type != "pending_invoice_created":
-        print(event.event_type)
-        return "IGNORE: " + event.event_type, 200
-    invoice_id = event.content.invoice.id
-    result = chargebee.Invoice.add_charge(
-        invoice_id, {"amount": 150, "description": "150 test runs in this period"}
-    )
-    invoice = result.invoice
-    print(invoice)
-    result = chargebee.Invoice.close(invoice_id)
-    print(invoice)
-
-    return "OK", 200
+@app.route("/signup_completed", methods=["GET"])
+async def signup_completed():
+    subscription_id = request.args.get("subscription_id")
+    result = chargebee.Subscription.retrieve(subscription_id)
+    subscription = result.subscription
+    project_name = subscription.cf_project_name
+    plan_name = request.args.get("plan_name")
+    template = env.get_template("signup_completed.html")
+    return template.render({"project_name": project_name})
 
 
 @app.route("/project/<project>/", methods=["GET"])
@@ -160,31 +195,25 @@ async def insert(project_name):
         return json.dumps({"error": "Invalid project"}), 404
     else:
         logger.debug("Using existing project")
-        print(project)
 
-    files = await request.files
-    if "file" not in files:
-        return json.dumps({"error": "No file"}), 400
-    # async with files["file"] as file:
-    file = files["file"]
-    if file:
-        tapper = Parser()
-        run = models.Run(project=project.pk, timestamp=datetime.datetime.now())
+    tapper = Parser()
+    run = models.Run(project=project.pk, timestamp=datetime.datetime.now())
 
-        for line in tapper.parse_text(str(file.read(), "utf-8")):
-            print(
-                "{}: {}".format(
-                    line.category, line.description if line.category == "test" else ""
-                )
+    data = await request.get_data()
+    for line in tapper.parse_text(str(data, "utf-8")):
+        print(
+            "{}: {}".format(
+                line.category, line.description if line.category == "test" else ""
             )
-            if line.category == "test":
-                result = models.Result(
-                    title=line.description,
-                    result="ok" if line.ok else "not ok",
-                    skip=line.directive.text if line.skip else None,
-                )
+        )
+        if line.category == "test":
+            result = models.Result(
+                title=line.description,
+                result="ok" if line.ok else "not ok",
+                skip=line.directive.text if line.skip else None,
+            )
 
-                run.results.append(result)
+            run.results.append(result)
         run.commit()
     return "hello"
 
@@ -192,4 +221,5 @@ async def insert(project_name):
 logging.basicConfig(level="DEBUG")
 
 if __name__ == "__main__":
+    chargebee.configure("test_hdeu7cKnChy96LLM5sHXixxOY3mYymie", "spinal-test")
     app.run()
