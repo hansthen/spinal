@@ -12,13 +12,14 @@ from collections import defaultdict
 
 import models
 import logging
+from signature import create_security_token, verify_security_token
 
 logger = logging.getLogger(__name__)
 
 app = Quart(__name__)
 
 env = Environment(
-    loader=PackageLoader("spinal", "templates"),
+    loader=PackageLoader("server", "templates"),
     autoescape=select_autoescape(["html", "xml"]),
 )
 
@@ -33,6 +34,7 @@ def setup_parser():
     We use configargparse to make it easy to also use
     environment variables and a config file to specify defaults"""
     parser = configargparse.ArgumentParser(description="store test results")
+    parser.add_argument("command", help="startup command")
     parser.add_argument(
         "-c",
         "--config",
@@ -41,19 +43,28 @@ def setup_parser():
         default="~/.spinal.settings",
         help="configuration file",
     )
-    parser_serve.add_argument(
+    parser.add_argument(
         "--public-key",
         type=str,
         env_var="SPINAL_PUBLIC_KEY",
+        default=open("id_rsa.pub").read(),
         help="the public key to use for validating a signature",
     )
-    parent.add_argument(
+    parser.add_argument(
+        "--private-key",
+        type=str,
+        env_var="SPINAL_PRIVATE_KEY",
+        default=open("id_rsa").read(),
+        help="the private key to use for validating a signature",
+    )
+    parser.add_argument(
         "--log-level",
         type=str,
         env_var="LOG_LEVEL",
         default="WARNING",
         help="Log level for main program",
     )
+    return parser
 
 
 class TapLineWrapper:
@@ -125,7 +136,9 @@ async def subscription_created(event):
     project_name = event.content.subscription.cf_project_name
     logger.debug(project_name)
     logger.debug(event)
-    project = models.Project(name=project_name)
+    project = models.Project(
+        name=project_name, subscription_id=event.content.subscription.id
+    )
     await project.commit()
     logger.debug("New project created")
     return "OK", 200
@@ -163,13 +176,16 @@ async def signup():
 
 @app.route("/signup_completed", methods=["GET"])
 async def signup_completed():
-    subscription_id = request.args.get("subscription_id")
+    subscription_id = request.args.get("sub_id")
     result = chargebee.Subscription.retrieve(subscription_id)
     subscription = result.subscription
     project_name = subscription.cf_project_name
     plan_name = request.args.get("plan_name")
     template = env.get_template("signup_completed.html")
-    return template.render({"project_name": project_name})
+    token = create_security_token(app.args.private_key, subscription_id)
+    # generate a secure id
+    # random hash: subscription_id
+    return template.render({"project_name": project_name, "token": token})
 
 
 @app.route("/project/<project>/", methods=["GET"])
@@ -220,6 +236,9 @@ async def insert(project_name):
 
 logging.basicConfig(level="DEBUG")
 
+chargebee.configure("test_hdeu7cKnChy96LLM5sHXixxOY3mYymie", "spinal-test")
 if __name__ == "__main__":
-    chargebee.configure("test_hdeu7cKnChy96LLM5sHXixxOY3mYymie", "spinal-test")
     app.run()
+else:
+    parser = setup_parser()
+    app.args = parser.parse_args()

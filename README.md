@@ -4,7 +4,7 @@ The test database
 Notes for testing
 =================
 Start testing locally:
-    use ./ngrok http 5000
+    ssh -R 80:localhost:5000 serveo.net
 
 Reconfigure webhooks in chargebee
     Settings --> Configure Chargebee --> API keys and webhooks --> Webhooks

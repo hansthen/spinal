@@ -47,4 +47,7 @@ Screens:
 3. test run detail page?
 4. test case detail page?
 
-
+---------------------------
+We need to generate a secret key to validate uploads to our server for each subscription.
+We can do this by signing the project id + subscription id using our private key and somehow communicating 
+this back to the user. One way to do this is by using the signup completion page.
