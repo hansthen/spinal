@@ -45,8 +45,9 @@ class Result(EmbeddedDocument):
 class Run(Document):
     project = fields.ReferenceField(Project)
     timestamp = fields.DateTimeField(required=True)
+    environment = fields.DictField()
     version = fields.StrField()
-    results = fields.EmbeddedField(Result, missing=[], many=True)
+    results = fields.ListField(fields.EmbeddedField(Result), missing=list)
 
     class Meta:
         indexes = ("project", "-timestamp")

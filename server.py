@@ -188,13 +188,13 @@ async def signup_completed():
     return template.render({"project_name": project_name, "token": token})
 
 
-@app.route("/project/<project>/", methods=["GET"])
+@app.route("/project/<project>", methods=["GET"])
 async def get(project):
     db = models.connect("spinal")
     N = 4
     tests = []
     runs = []
-    for run in TestRun.objects.order_by("-started"):
+    for run in models.Run.objects.order_by("-started"):
         runs.append({result.title: result for result in run.results})
         results = [result.title for result in run.results]
         tests = merge_lists(tests, results)
@@ -203,7 +203,7 @@ async def get(project):
     return template.render(table=table)
 
 
-@app.route("/project/<project_name>/", methods=["POST"])
+@app.route("/project/<project_name>", methods=["POST"])
 async def insert(project_name):
     db = models.connect("spinal")
     project = await models.Project.find_one({"name": project_name})
@@ -212,15 +212,22 @@ async def insert(project_name):
     else:
         logger.debug("Using existing project")
 
+    environ = {
+        key[4:]: request.headers.get(key)
+        for key in request.headers
+        if key.startswith("ENV_")
+    }
     tapper = Parser()
-    run = models.Run(project=project.pk, timestamp=datetime.datetime.now())
+
+    run = models.Run(
+        project=project.pk, environment=environ, timestamp=datetime.datetime.now()
+    )
 
     data = await request.get_data()
-    for line in tapper.parse_text(str(data, "utf-8")):
-        print(
-            "{}: {}".format(
-                line.category, line.description if line.category == "test" else ""
-            )
+    logger.info(str(data))
+    for line in tapper.parse_text(data.decode("utf-8")):
+        logger.info(
+            "%s: %s", line.category, line.description if line.category == "test" else ""
         )
         if line.category == "test":
             result = models.Result(
@@ -230,8 +237,8 @@ async def insert(project_name):
             )
 
             run.results.append(result)
-        run.commit()
-    return "hello"
+    await run.commit()
+    return "hello", 200
 
 
 logging.basicConfig(level="DEBUG")

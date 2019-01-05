@@ -1,11 +1,14 @@
 import sys
 import logging
 from io import StringIO
+import re
+import os
 
 import configargparse
 import requests
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level="DEBUG")
 
 
 def setup_parser():
@@ -42,6 +45,14 @@ def setup_parser():
         env_var="SPINAL_TOKEN",
         help="the secret token used to identify the project",
     )
+    parser.add_argument(
+        "--env",
+        type=str,
+        nargs="*",
+        env_var="SPINAL_ENV",
+        default=[],
+        help="environment variables to be copied to the server, accepts a regular expression",
+    )
     return parser
 
 
@@ -64,8 +75,22 @@ def main():
     parser = setup_parser()
     args = parser.parse_args()
 
-    result = requests.post(args.server + args.project + "/abc", data=tee(sys.stdin))
+    patterns = [re.compile(env) for env in args.env]
+
+    copies = []
+    for env in os.environ:
+        for p in patterns:
+            m = p.match(env)
+            if m:
+                copies.append(env)
+
+    headers = {"ENV_" + env: os.environ.get(env) for env in copies}
+
+    result = requests.post(
+        args.server + args.project, data=tee(sys.stdin), headers=headers
+    )
     if result.status_code != 200:
+        logger.debug("Error uploading TAP %s", result.text)
         sys.exit(1)
 
 
