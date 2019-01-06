@@ -1,7 +1,9 @@
 from quart import Quart, flash, request
+from binascii import hexlify, unhexlify
 import motor
 from chargebee.models import Event
 import chargebee
+import uuid
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
@@ -10,9 +12,12 @@ import datetime
 import json
 from collections import defaultdict
 
+import signature
+
 import models
 import logging
-from signature import create_security_token, verify_security_token
+
+# from signature import create_security_token, verify_security_token
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +39,7 @@ def setup_parser():
     We use configargparse to make it easy to also use
     environment variables and a config file to specify defaults"""
     parser = configargparse.ArgumentParser(description="store test results")
-    parser.add_argument("command", help="startup command")
+    parser.add_argument("command", nargs="?", help="startup command", default="run")
     parser.add_argument(
         "-c",
         "--config",
@@ -43,20 +48,7 @@ def setup_parser():
         default="~/.spinal.settings",
         help="configuration file",
     )
-    parser.add_argument(
-        "--public-key",
-        type=str,
-        env_var="SPINAL_PUBLIC_KEY",
-        default=open("id_rsa.pub").read(),
-        help="the public key to use for validating a signature",
-    )
-    parser.add_argument(
-        "--private-key",
-        type=str,
-        env_var="SPINAL_PRIVATE_KEY",
-        default=open("id_rsa").read(),
-        help="the private key to use for validating a signature",
-    )
+
     parser.add_argument(
         "--log-level",
         type=str,
@@ -64,6 +56,22 @@ def setup_parser():
         default="WARNING",
         help="Log level for main program",
     )
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--private-key",
+        type=bytes.fromhex,
+        env_var="SPINAL_PRIVATE_KEY",
+        default=None,
+        help="the private key to use for validating a signature",
+    )
+    group.add_argument(
+        "--private-key-file",
+        env_var="SPINAL_PRIVATE_KEY_FILE",
+        default="signing_key",
+        help="read the private key from a file",
+    )
+
     return parser
 
 
@@ -188,6 +196,25 @@ async def signup_completed():
     return template.render({"project_name": project_name, "token": token})
 
 
+def create_security_token(key, subscription_id):
+    salt = uuid.uuid4()
+    sign = signature.create_signature(
+        key, hexlify((salt.hex + ":" + subscription_id).encode("ascii"))
+    )
+    return salt.hex + sign.hex()
+
+
+def verify_security_token(key, subscription_id, token):
+    salt = token[:32]
+    signature_hex = token[32:]
+    sign = bytes.fromhex(signature_hex)
+    # return signature.verify_signature(key, sign, salt + ":" + subscription_id)
+    original = signature.verify_signature(key, sign)
+    original_string = unhexlify(original).decode("ascii")
+    salt, verification_id = original_string.split(":")
+    return verification_id == subscription_id
+
+
 @app.route("/project/<project>", methods=["GET"])
 async def get(project):
     db = models.connect("spinal")
@@ -245,7 +272,15 @@ logging.basicConfig(level="DEBUG")
 
 chargebee.configure("test_hdeu7cKnChy96LLM5sHXixxOY3mYymie", "spinal-test")
 if __name__ == "__main__":
+    parser = setup_parser()
+    app.args = parser.parse_args()
+    app.args.private_key = (
+        app.args.private_key or open(app.args.private_key_file, "rb").read()
+    )
     app.run()
 else:
     parser = setup_parser()
     app.args = parser.parse_args()
+    app.args.private_key = (
+        app.args.private_key or open(app.args.private_key_file, "rb").read()
+    )

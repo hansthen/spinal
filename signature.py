@@ -1,50 +1,89 @@
+import nacl.signing
+import nacl.encoding
+
 from binascii import unhexlify, hexlify, Error
 
-from Crypto.PublicKey import RSA
-from Crypto.Hash import SHA256
-from Crypto.Signature import PKCS1_PSS
 import uuid
+import os.path
+import sys
+
+import configargparse
 
 
-def verify_signature(public_key_string, signature, string):
-    try:
-        signature_bytes = unhexlify(signature)
-    except Error as e:
-        print(e)
-        return False
-
-    public_key = RSA.importKey(public_key_string)
-    hasher = SHA256.new()
-    hasher.update(string.encode("utf-8"))
-
-    verifier = PKCS1_PSS.new(public_key)
-    return verifier.verify(hasher, signature_bytes)
+def create_signature(key, item):
+    signing_key = nacl.signing.SigningKey(key, encoder=nacl.encoding.HexEncoder)
+    signed = signing_key.sign(item)
+    return signed
 
 
-def create_signature(private_key_string, string):
-    private_key = RSA.importKey(private_key_string)
-    hasher = SHA256.new()
-    hasher.update(string.encode("utf-8"))
-
-    signer = PKCS1_PSS.new(private_key)
-    return str(hexlify(signer.sign(hasher)), "utf-8")
+def verify_signature(key, signature):
+    signing_key = nacl.signing.SigningKey(key, encoder=nacl.encoding.HexEncoder)
+    verify_key = signing_key.verify_key
+    signed = nacl.signing.SignedMessage(signature)
+    return verify_key.verify(signed)
 
 
-def create_security_token(private_key_string, string):
-    salt = uuid.uuid4()
-    signature = create_signature(private_key_string, salt.hex + ":" + string)
-    return salt.hex + signature
+def generate():
+    signing_key = nacl.signing.SigningKey.generate()
+    return signing_key.encode(encoder=nacl.encoding.HexEncoder).decode("ascii")
 
 
-def verify_security_token(public_key_string, salted_signature, string):
-    salt = salted_signature[:32]
-    signature = salted_signature[32:]
-    return verify_signature(public_key_string, signature, salt + ":" + string)
+def setup_parser():
+    parser = configargparse.ArgumentParser(description="PyNaCl signing module")
+    subparsers = parser.add_subparsers(
+        title="command", dest="command", help="subcommand help"
+    )
+    parser_generate = subparsers.add_parser("generate", help="generate a new key")
+    parser_sign = subparsers.add_parser("sign", help="sign a string")
+    parser_verify = subparsers.add_parser("verify", help="verify a signed string")
+
+    parser_sign.add_argument("--key", type=lambda s: s.encode("ascii"), required=True)
+    parser_sign.add_argument("--data", type=lambda s: s.encode("utf-8"), required=True)
+
+    parser_verify.add_argument("--key", type=lambda s: s.encode("ascii"), required=True)
+    parser_verify.add_argument("--signature", type=bytes.fromhex, required=True)
+
+    return parser
 
 
 if __name__ == "__main__":
-    public_key = open("id_rsa.pub").read()
-    private_key = open("id_rsa").read()
-    token = create_security_token(private_key, "abcde")
-    result = verify_security_token(public_key, token, "abcde")
-    print(result)
+    parser = setup_parser()
+    args = parser.parse_args()
+    if args.command == "generate":
+        print(generate())
+    elif args.command == "sign":
+        print(create_signature(args.key, args.data).hex())
+    elif args.command == "verify":
+        print(verify_signature(args.key, args.signature).decode("utf-8"))
+    sys.exit(0)
+
+    if not os.path.isfile("signing_key"):
+        signing_key = nacl.signing.SigningKey.generate()
+        with open("signing_key", "w") as key_file:
+            key_file.write(
+                signing_key.encode(encoder=nacl.encoding.HexEncoder).decode("ascii")
+            )
+    else:
+        with open("signing_key", "r") as key_file:
+            signing_key_hex = key_file.read().encode("ascii")
+            signing_key = nacl.signing.SigningKey(
+                signing_key_hex, encoder=nacl.encoding.HexEncoder
+            )
+
+    signed = signing_key.sign(b"Attack at dawn")
+    signed_message_hex = signed.hex()
+    bytes_2 = bytes.fromhex(signed_message_hex)
+    signed_2 = nacl.signing.SignedMessage(bytes_2)
+    print("-----")
+    print(signed_message_hex)
+    print("=====")
+    print(signed_2.hex())
+    print("----")
+
+    verify_key = signing_key.verify_key
+    print(verify_key.verify(signed_2))
+    print("+++++++++++++++++++++")
+    signing_key_hex = signing_key.encode(encoder=nacl.encoding.HexEncoder)
+    signature = create_signature(signing_key_hex, b"Attack at dawn")
+    print(signature)
+    print(verify_signature(signing_key_hex, signature))

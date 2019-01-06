@@ -1,12 +1,21 @@
-@test "test signatures" {
-    run rm ./id_rsa ./id_rsa.pub
-    ssh-keygen -t rsa -q -P "" -f ./id_rsa
-    private_key=$(cat ./id_rsa)
-    public_key=$(cat ./id_rsa.pub)
-    signature=$(python3 -c "import signature; print(signature.create_security_token( \"\"\"${private_key}\"\"\", 'hello world'))")
-    echo "$signature"
-    echo "-----"
-    result=$(python3 -c "import signature; print(signature.verify_security_token(\"\"\"${public_key}\"\"\", \"\"\"${signature}\"\"\", 'hello world'))")
-    echo $result
-    [ "$result" == True ]
+@test "signature" {
+    run python3 -m coverage run -a ../signature.py generate
+    echo "$output"
+    key="$output"
+    run python3 -m coverage run -a ../signature.py sign --key "$key" --data "The snow this year is better at Innsbrook."    
+    signature="$output"
+    run python3 -m coverage run -a ../signature.py verify --key "$key" --signature "$signature"
+    data="$output"
+    echo $data
+    [ "$data" == "The snow this year is better at Innsbrook." ]
+}
+
+
+@test "invalid signature" {
+    run python3 -m coverage run -a ../signature.py generate
+    key="$output"
+    run python3 -m coverage run -a ../signature.py sign --key "$key" --data "The horse is in the barn"    
+    signature="$output"
+    run python3 -m coverage run -a ../signature.py verify --key "$key" --signature "${signature}1213"
+    [ "$status" -ne 0 ]
 }
